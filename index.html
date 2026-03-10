@@ -243,7 +243,7 @@ input[type=date]{color-scheme:dark}
       <button class="pt-btn" id="pt-quin" onclick="setPeriod('quincena')">Q</button>
     </div>
   </div>
-  <div id="sync-status"></div>
+  <div style="display:flex;align-items:center;gap:8px;padding:0 16px"><div id="sync-status" style="flex:1"></div><button onclick="sbInit()" style="background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:5px 10px;color:var(--text2);font-size:11px;font-weight:700;cursor:pointer">🔄</button></div>
   <div class="hero">
     <div class="hero-period" id="hero-period">Mes completo</div>
     <div class="hero-main">
@@ -433,8 +433,27 @@ async function sbInit() {
     renderDash();
     // Escuchar cambios en tiempo real
     sb.channel('realtime-gastos')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'gastos' }, () => sbInit())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'gastos' }, async () => {
+        const { data } = await sb.from('gastos').select('*').order('fecha', { ascending: false });
+        if (data) {
+          gastos = data.map(r => ({
+            id: r.id, catId: r.cat_id, monto: r.monto,
+            desc: r.descripcion || '', nota: r.nota || '',
+            fecha: r.fecha, auto: r.auto || false, fotoUrl: r.foto_url || ''
+          }));
+          localStorage.setItem(SK.g, JSON.stringify(gastos));
+          renderDash();
+          const active = document.querySelector('.page.active');
+          if (active && active.id === 'page-gastos') renderGastos();
+          if (active && active.id === 'page-hist') renderHist();
+        }
+      })
       .subscribe();
+    // Polling cada 30 segundos como respaldo
+    if (window._pollInterval) clearInterval(window._pollInterval);
+    window._pollInterval = setInterval(async () => {
+      if (!document.hidden) sbInit();
+    }, 30000);
   } catch(e) {
     sbOnline = false;
     setSyncStatus('off', '🔴 Sin conexión — usando datos locales');
