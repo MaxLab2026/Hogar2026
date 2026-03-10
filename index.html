@@ -356,25 +356,6 @@ input[type=date]{color-scheme:dark}
 </div>
 </div>
 
-
-<!-- ════ MODAL GALERÍA ════ -->
-<div id="ov-galeria" class="overlay" onclick="closeOv('ov-galeria',event)">
-<div class="modal" style="max-height:90dvh">
-  <div class="m-handle"></div>
-  <div class="m-title">🖼 Galería de recibos</div>
-  <div id="galeria-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;overflow-y:auto;max-height:65dvh"></div>
-  <div class="brow" style="margin-top:12px"><button class="btn btn-s" onclick="closeOv('ov-galeria')">Cerrar</button></div>
-</div>
-</div>
-
-<!-- ════ MODAL ZOOM FOTO ════ -->
-<div id="ov-zoom" class="overlay" onclick="closeOv('ov-zoom',event)" style="align-items:center">
-<div style="width:100%;max-width:480px;padding:16px;position:relative">
-  <img id="zoom-img" style="width:100%;border-radius:14px;max-height:85dvh;object-fit:contain;touch-action:pinch-zoom" src="" alt="recibo"/>
-  <button onclick="closeOv('ov-zoom')" style="position:absolute;top:24px;right:24px;width:32px;height:32px;border-radius:50%;background:rgba(0,0,0,.7);border:none;color:#fff;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>
-</div>
-</div>
-
 <!-- ════ MODAL VER FOTO ════ -->
 <div id="ov-foto" class="overlay" onclick="closeOv('ov-foto',event)">
 <div class="modal">
@@ -431,11 +412,10 @@ function setSyncStatus(type, msg) {
 async function sbInit() {
   setSyncStatus('loading', '⏳ Conectando con Supabase...');
   try {
-    const [gRes, pRes, iRes, mRes] = await Promise.all([
+    const [gRes, pRes, iRes] = await Promise.all([
       sb.from('gastos').select('*').order('fecha', { ascending: false }),
       sb.from('presupuesto').select('*'),
-      sb.from('ingresos').select('*'),
-      sb.from('metas').select('*')
+      sb.from('ingresos').select('*')
     ]);
     if (gRes.error) throw gRes.error;
     gastos = (gRes.data || []).map(r => ({
@@ -445,8 +425,6 @@ async function sbInit() {
     }));
     if (pRes.data) pRes.data.forEach(r => { presupuesto[r.cat_id] = r.monto; });
     if (iRes.data) iRes.data.forEach(r => { ingresos[r.mes] = r.monto; });
-    if (mRes.data) mRes.data.forEach(r => { metas[r.mes] = r.monto; });
-    localStorage.setItem(SK.m, JSON.stringify(metas));
     localStorage.setItem(SK.g, JSON.stringify(gastos));
     localStorage.setItem(SK.p, JSON.stringify(presupuesto));
     localStorage.setItem(SK.i, JSON.stringify(ingresos));
@@ -461,7 +439,7 @@ async function sbInit() {
           gastos = data.map(r => ({
             id: r.id, catId: r.cat_id, monto: r.monto,
             desc: r.descripcion || '', nota: r.nota || '',
-            fecha: r.fecha, auto: r.auto || false, fotoUrl: r.foto_url || '', usuario: r.usuario || ''
+            fecha: r.fecha, auto: r.auto || false, fotoUrl: r.foto_url || ''
           }));
           localStorage.setItem(SK.g, JSON.stringify(gastos));
           renderDash();
@@ -487,7 +465,7 @@ async function sbSaveGasto(g) {
   if (!sbOnline) return null;
   const row = {
     cat_id: g.catId, monto: g.monto, descripcion: g.desc || '',
-    nota: g.nota || '', fecha: g.fecha, auto: g.auto || false, foto_url: g.fotoUrl || '', usuario: g.usuario || usuarioActual
+    nota: g.nota || '', fecha: g.fecha, auto: g.auto || false, foto_url: g.fotoUrl || ''
   };
   if (typeof g.id === 'number') {
     const { data } = await sb.from('gastos').update(row).eq('id', g.id).select().single();
@@ -511,11 +489,6 @@ async function sbSavePres(catId, monto) {
 async function sbSaveIngreso(mes, monto) {
   if (!sbOnline) return;
   await sb.from('ingresos').upsert({ mes, monto }, { onConflict: 'mes' });
-}
-
-async function sbSaveMeta(mes, monto) {
-  if (!sbOnline) return;
-  await sb.from('metas').upsert({ mes, monto }, { onConflict: 'mes' });
 }
 
 async function sbUploadFoto(file, nombre) {
@@ -557,13 +530,12 @@ const TREND_COLORS = ['#4f8ef7','#1edd9a','#fb923c','#a78bfa','#f472b6','#f5c542
 // ═══════════════════════════════════════
 //  ESTADO
 // ═══════════════════════════════════════
-let gastos=[],presupuesto={},ingresos={},metas={},fixedCats={},customCats=[],cats=[];
-let usuarioActual='';
+let gastos=[],presupuesto={},ingresos={},fixedCats={},customCats=[],cats=[];
 let selCat=null,editId=null,period='mes',filtroG='all',filtroHist=null;
 let cChart=null,trendChart=null,ccChart=null,notifEnabled=false;
 let currentFotoFile=null,currentFotoUrl=null;
 
-const SK={g:'co_gastos_v2',p:'co_pres_v2',i:'co_ingresos_v2',f:'co_fixed_v2',cc:'co_custom_cats_v1',n:'co_notif_v1',m:'co_metas_v1',u:'co_usuario_v1'};
+const SK={g:'co_gastos_v2',p:'co_pres_v2',i:'co_ingresos_v2',f:'co_fixed_v2',cc:'co_custom_cats_v1',n:'co_notif_v1'};
 
 function load(){
   try{gastos=JSON.parse(localStorage.getItem(SK.g))||[];}catch{gastos=[];}
@@ -572,8 +544,6 @@ function load(){
   try{fixedCats=JSON.parse(localStorage.getItem(SK.f))||{};}catch{fixedCats={};}
   try{customCats=JSON.parse(localStorage.getItem(SK.cc))||[];}catch{customCats=[];}
   try{notifEnabled=JSON.parse(localStorage.getItem(SK.n))||false;}catch{notifEnabled=false;}
-  try{metas=JSON.parse(localStorage.getItem(SK.m))||{};}catch{metas={};}
-  try{usuarioActual=localStorage.getItem(SK.u)||'';}catch{usuarioActual='';}
   buildCats();
 }
 function saveLocal(){
@@ -583,8 +553,6 @@ function saveLocal(){
   localStorage.setItem(SK.f,JSON.stringify(fixedCats));
   localStorage.setItem(SK.cc,JSON.stringify(customCats));
   localStorage.setItem(SK.n,JSON.stringify(notifEnabled));
-  localStorage.setItem(SK.m,JSON.stringify(metas));
-  if(usuarioActual)localStorage.setItem(SK.u,usuarioActual);
 }
 function buildCats(){cats=[...BASE_CATS,...customCats.map(c=>({...c,custom:true}))];}
 function cat(id){return cats.find(c=>c.id===id)||{id:'otros',name:'Otros',icon:'📦',color:'#94a3b8',bg:'rgba(148,163,184,.15)'};}
@@ -772,7 +740,7 @@ function gaItem(g,src){
     <div class="gitem-icon" style="background:${c.bg}">${c.icon}${g.fotoUrl?'<div class="gitem-photo-badge">📷</div>':''}</div>
     <div class="gitem-info">
       <div class="gitem-name">${g.desc||c.name}</div>
-      <div class="gitem-meta">${c.name} · ${new Date(g.fecha+'T12:00:00').toLocaleDateString('es-CO',{day:'numeric',month:'short'})}${g.usuario?` · <span style="color:var(--purple);font-weight:700">${g.usuario}</span>`:''}</div>
+      <div class="gitem-meta">${c.name} · ${new Date(g.fecha+'T12:00:00').toLocaleDateString('es-CO',{day:'numeric',month:'short'})}</div>
       ${g.nota?`<div class="gitem-note">${g.nota}</div>`:''}
     </div>
     <div class="gitem-right">
@@ -823,18 +791,7 @@ function renderPres(){
     ${c.custom?`<button class="del-cat-btn" onclick="delCat('${c.id}')">✕</button>`:''}</div>`).join('');
   document.getElementById('settings-card').innerHTML=`
     <div class="notif-row"><div><div class="notif-label">🔔 Alertas de presupuesto</div><div class="notif-sub">Aviso al 80% y 100% de cada categoría</div></div><label class="toggle-sw"><input type="checkbox" ${notifEnabled?'checked':''} onchange="toggleNotif()"/><span class="slider"></span></label></div>
-    <div class="notif-row" style="margin-top:8px">
-      <div><div class="notif-label">👤 Tu nombre en la app</div><div class="notif-sub">Aparece en cada gasto que registres</div></div>
-      <select id="usuario-sel" onchange="cambiarUsuario(this.value)" style="background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;color:var(--text);font-family:var(--font);font-size:12px;font-weight:700;outline:none">
-        <option value="">Sin nombre</option>
-        <option value="Yo" ${usuarioActual==='Yo'?'selected':''}>Yo</option>
-        <option value="Esposa" ${usuarioActual==='Esposa'?'selected':''}>Esposa</option>
-        <option value="Max" ${usuarioActual==='Max'?'selected':''}>Max</option>
-        <option value="Laura" ${usuarioActual==='Laura'?'selected':''}>Laura</option>
-        <option value="Otro" ${usuarioActual==='Otro'?'selected':''}>Otro</option>
-      </select>
-    </div>
-    <button class="export-btn" onclick="exportCSV()">📤 Exportar gastos a CSV</button>\`;
+    <button class="export-btn" onclick="exportCSV()">📤 Exportar gastos a CSV</button>`;
 }
 function updatePresSum(){
   let total=0;cats.forEach(c=>{total+=parseFloat(document.getElementById('bud-'+c.id)?.value)||0;});
@@ -842,106 +799,6 @@ function updatePresSum(){
   const ps=document.getElementById('pres-sum');if(!ps)return;
   ps.innerHTML=`<div class="pres-sum-row"><span class="pres-sum-label">Total presupuestado</span><span class="pres-sum-val">${fmt(total)}</span></div><div class="pres-sum-row"><span class="pres-sum-label">Quincenal</span><span class="pres-sum-val" style="color:var(--blue)">${fmt(total/2)}</span></div><div class="pres-sum-row"><span class="pres-sum-label">${libre>=0?'✨ Ahorro':'⚠️ Déficit'}</span><span class="pres-sum-val ${libre>=0?'g':'r'}">${fmt(Math.abs(libre))}</span></div>`;
 }
-
-function generarPDF() {
-  const mk = mesActual();
-  const gs = gastosDelMes(mk).sort((a,b) => a.fecha.localeCompare(b.fecha));
-  const tot = gs.reduce((s,g) => s+g.monto, 0);
-  const ing = ingresos[mk] || 0;
-  const pt = presTotal();
-  const ahorro = ing - tot;
-  const meta = metas[mk] || 0;
-  const ml = mesLabel(mk);
-
-  // Group by category
-  const byCat = {};
-  gs.forEach(g => { byCat[g.catId] = (byCat[g.catId]||0) + g.monto; });
-  const topCats = Object.entries(byCat).sort((a,b) => b[1]-a[1]).slice(0,8);
-
-  const w = window.open('','_blank');
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"/>
-  <title>CasaOS — ${ml}</title>
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'Segoe UI',sans-serif;background:#f8fafc;color:#1e293b;padding:32px;max-width:700px;margin:0 auto}
-    .header{background:linear-gradient(135deg,#0b1e3d,#1a3a6b);color:#fff;border-radius:16px;padding:28px;margin-bottom:24px}
-    .header h1{font-size:28px;font-weight:900;letter-spacing:-1px;margin-bottom:4px}
-    .header p{font-size:13px;opacity:.7;text-transform:capitalize}
-    .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px}
-    .card{background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
-    .card-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748b;margin-bottom:6px}
-    .card-val{font-size:22px;font-weight:900;letter-spacing:-1px}
-    .card-val.g{color:#1edd9a}
-    .card-val.r{color:#f76f6f}
-    .card-val.b{color:#4f8ef7}
-    .section{background:#fff;border-radius:12px;padding:20px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
-    .section h2{font-size:14px;font-weight:800;margin-bottom:14px;color:#334155}
-    .cat-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f1f5f9}
-    .cat-row:last-child{border-bottom:none}
-    .cat-bar-wrap{flex:1;height:6px;background:#f1f5f9;border-radius:99px;overflow:hidden}
-    .cat-bar{height:100%;background:#4f8ef7;border-radius:99px}
-    .gasto-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f1f5f9;font-size:12px}
-    .gasto-row:last-child{border-bottom:none}
-    .badge{display:inline-block;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:700}
-    .badge-ok{background:#d1fae5;color:#065f46}
-    .badge-over{background:#fee2e2;color:#991b1b}
-    .meta-bar{height:12px;background:#f1f5f9;border-radius:99px;overflow:hidden;margin:10px 0 6px}
-    .meta-fill{height:100%;border-radius:99px}
-    .footer{text-align:center;font-size:11px;color:#94a3b8;margin-top:24px}
-    @media print{body{padding:16px}button{display:none}}
-  </style></head><body>
-  <div class="header">
-    <h1>📊 Reporte CasaOS</h1>
-    <p>${ml} · Generado el ${new Date().toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long'})}</p>
-  </div>
-  <div class="cards">
-    <div class="card"><div class="card-label">💰 Ingreso</div><div class="card-val b">${fmt(ing)}</div></div>
-    <div class="card"><div class="card-label">💸 Gastado</div><div class="card-val ${tot>pt?'r':''}">${fmt(tot)}</div></div>
-    <div class="card"><div class="card-label">✨ Ahorro</div><div class="card-val ${ahorro>=0?'g':'r'}">${fmt(ahorro)}</div></div>
-  </div>
-  ${meta>0?`<div class="section">
-    <h2>🎯 Meta de ahorro</h2>
-    <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px"><span>Meta: <strong>${fmt(meta)}</strong></span><span>Logrado: <strong style="color:${ahorro>=meta?'#1edd9a':'#f76f6f'}">${fmt(ahorro)}</strong></span></div>
-    <div class="meta-bar"><div class="meta-fill" style="width:${Math.min(100,Math.max(0,ahorro/meta*100)).toFixed(0)}%;background:${ahorro>=meta?'#1edd9a':'#f76f6f'}"></div></div>
-    <div style="font-size:12px;color:#64748b">${ahorro>=meta?'🎉 ¡Meta cumplida! Ahorraste '+fmt(ahorro-meta)+' extra':'⚠️ Faltaron '+fmt(meta-ahorro)+' para cumplir la meta'}</div>
-  </div>`:''}
-  <div class="section">
-    <h2>📂 Gastos por categoría</h2>
-    ${topCats.map(([cid,monto])=>{const c=cat(cid),pres=presupuesto[cid]||0,pct=pres>0?Math.min(100,monto/pres*100):0;
-      return`<div class="cat-row">
-        <div style="width:28px;text-align:center;font-size:16px">${c.icon}</div>
-        <div style="flex:1"><div style="font-size:12px;font-weight:700">${c.name}</div><div class="cat-bar-wrap"><div class="cat-bar" style="width:${pct}%;background:${pct>=100?'#f76f6f':pct>=80?'#f5c542':'#4f8ef7'}"></div></div></div>
-        <div style="text-align:right"><div style="font-size:12px;font-weight:800">${fmt(monto)}</div>${pres>0?`<div style="font-size:10px;color:#94a3b8">de ${fmt(pres)}</div>`:''}
-        ${pres>0?`<span class="badge ${pct>=100?'badge-over':'badge-ok'}">${pct.toFixed(0)}%</span>`:''}
-        </div>
-      </div>`;}).join('')}
-  </div>
-  <div class="section">
-    <h2>📋 Todos los gastos (${gs.length})</h2>
-    ${gs.map(g=>{const c=cat(g.catId);return`<div class="gasto-row">
-      <div><span style="margin-right:6px">${c.icon}</span><strong>${g.desc||c.name}</strong>${g.usuario?` <span style="color:#a78bfa;font-size:10px;font-weight:700">(${g.usuario})</span>`:''}</div>
-      <div style="text-align:right"><div style="font-weight:800;color:#f76f6f">${fmt(g.monto)}</div><div style="color:#94a3b8;font-size:10px">${new Date(g.fecha+'T12:00:00').toLocaleDateString('es-CO',{day:'numeric',month:'short'})}</div></div>
-    </div>`;}).join('')}
-  </div>
-  <div class="footer">CasaOS · ${new Date().getFullYear()} · Reporte generado automáticamente</div>
-  <br/><button onclick="window.print()" style="width:100%;padding:12px;border-radius:10px;border:none;background:#4f8ef7;color:#fff;font-size:14px;font-weight:800;cursor:pointer">🖨️ Imprimir / Guardar PDF</button>
-  </body></html>`);
-  w.document.close();
-}
-
-function cambiarUsuario(val){
-  usuarioActual=val;
-  localStorage.setItem(SK.u,val);
-  toast('👤 Usuario: '+(val||'Sin nombre'));
-}
-
-async function guardarMeta(){
-  const v=parseFloat(document.getElementById('meta-input')?.value)||0;
-  metas[mesActual()]=v;
-  await sbSaveMeta(mesActual(),v);
-  saveLocal();toast('🎯 Meta guardada');renderPres();
-}
-
 async function guardarPres(){
   const ing=parseFloat(document.getElementById('pi-ing').value)||0;
   if(ing>0){ingresos[mesActual()]=ing;await sbSaveIngreso(mesActual(),ing);}
@@ -1081,7 +938,7 @@ async function saveGasto(){
     fotoUrl=await sbUploadFoto(currentFotoFile,uid())||'';
   }
   const eid=document.getElementById('g-edit-id').value;
-  const obj={catId:selCat,monto,desc,nota,fecha,auto:false,fotoUrl,usuario:usuarioActual};
+  const obj={catId:selCat,monto,desc,nota,fecha,auto:false,fotoUrl};
   if(eid){
     const saved=await sbSaveGasto({id:Number(eid)||eid,...obj});
     const idx=gastos.findIndex(x=>x.id==eid);
